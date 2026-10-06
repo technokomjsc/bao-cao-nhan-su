@@ -160,7 +160,7 @@ function renderFactories() {
         const absent = sum(x.departments.map(d => sum(d.values)));
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>${x.departments.length} bộ phận</small></div>
-          <span class="badge ${absent ? 'has' : ''}">${absent} người</span>
+          <span class="badge ${absent ? 'has' : ''}">${absent} người nghỉ</span>
         </button>`;
       }).join('')}
     </div>`;
