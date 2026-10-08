@@ -443,7 +443,7 @@ function breadFactories() {
       ${f.map((x, i) => {
         const done = declaredCount(x.departments), all = x.departments.length;
         return `<button class="item" data-i="${i}">
-          <div>${esc(x.name)}<small>Đã khai ${done}/${all} bộ phận · ${qtySum(x.departments)} suất</small></div>
+          <div>${esc(x.name)}<small>Đã báo: ${done}/${all} bộ phận · ${qtySum(x.departments)} suất</small></div>
         </button>`;
       }).join('')}
     </div>
@@ -466,7 +466,7 @@ function breadStatusTable() {
   return `
     <div class="status-head">
       <div class="step-title">Tình hình khai báo</div>
-      <small>Đã khai <b>${done}/${all.length}</b> bộ phận</small>
+      <small>Đã báo: <b>${done}/${all.length}</b> bộ phận</small>
     </div>
     <div class="progress"><i style="width:${pct}%"></i></div>
     <table class="st">
@@ -479,7 +479,7 @@ function breadStatusTable() {
           ${x.departments.map(d => `
             <tr>
               <td>${esc(d.name)}</td>
-              <td class="c"><span class="pill ${d.declared ? 'ok' : 'no'}">${d.declared ? '✓ Đã khai' : '✗ Chưa khai'}</span></td>
+              <td class="c"><span class="pill ${d.declared ? 'ok' : 'no'}">${d.declared ? '✓ Đã báo' : '✗ Chưa báo'}</span></td>
               <td class="num ${d.declared ? '' : 'muted'}">${d.declared ? d.value : '—'}</td>
               <td class="num muted">${d.declared ? esc(d.time) : '—'}</td>
             </tr>`).join('')}
@@ -525,7 +525,7 @@ function breadForm() {
                  placeholder="0" value="${d.declared ? d.value : ''}">
           <button type="button" id="inc" aria-label="Tăng">+</button>
         </div>
-        <div class="cur">${d.declared ? `Đã khai: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa khai hôm nay'}</div>
+        <div class="cur">${d.declared ? `Đã báo: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa khai hôm nay'}</div>
       </div>
     </div>`;
 
@@ -590,8 +590,8 @@ function breadDone() {
       <p>${esc(B.factory.name)} · ${esc(d.name)} · ${esc(d.time)}</p>
     </div>
     <div class="card stats">
-      <div><b>${d.value}</b><span>Suất đã khai</span></div>
-      <div><b>${declaredCount(B.factory.departments)}/${B.factory.departments.length}</b><span>Bộ phận đã khai</span></div>
+      <div><b>${d.value}</b><span>Suất đã báo</span></div>
+      <div><b>${declaredCount(B.factory.departments)}/${B.factory.departments.length}</b><span>Bộ phận đã báo</span></div>
       <div><b>${qtySum(B.factory.departments)}</b><span>Tổng suất ${esc(B.factory.name)}</span></div>
     </div>
     ${breadStatusTable()}`;
