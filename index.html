@@ -497,8 +497,8 @@ function breadDepartments() {
     <div class="step-title">Bước 2 · Chọn bộ phận</div>
     <div class="list">
       ${d.map((x, i) => `<button class="item" data-i="${i}">
-          <div>${esc(x.name)}<small>${x.declared ? 'Khai lúc ' + esc(x.time) : 'Chưa khai'}</small></div>
-          <span class="badge ${x.declared ? 'ok' : 'no'}">${x.declared ? x.value + ' suất' : 'Chưa khai'}</span>
+          <div>${esc(x.name)}<small>${x.declared ? 'Khai lúc ' + esc(x.time) : 'Chưa báo'}</small></div>
+          <span class="badge ${x.declared ? 'ok' : 'no'}">${x.declared ? x.value + ' suất' : 'Chưa báo'}</span>
         </button>`).join('')}
     </div>`;
   $app.querySelectorAll('.item').forEach(b => b.onclick = () => {
@@ -525,7 +525,7 @@ function breadForm() {
                  placeholder="0" value="${d.declared ? d.value : ''}">
           <button type="button" id="inc" aria-label="Tăng">+</button>
         </div>
-        <div class="cur">${d.declared ? `Đã báo: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa khai hôm nay'}</div>
+        <div class="cur">${d.declared ? `Đã báo: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa báo hôm nay'}</div>
       </div>
     </div>`;
 
