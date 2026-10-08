@@ -444,7 +444,6 @@ function breadFactories() {
         const done = declaredCount(x.departments), all = x.departments.length;
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>Đã khai ${done}/${all} bộ phận · ${qtySum(x.departments)} suất</small></div>
-          <span class="badge ${done === all ? 'ok' : done ? 'has' : 'no'}">${done === all ? 'Đủ' : 'Thiếu ' + (all - done)}</span>
         </button>`;
       }).join('')}
     </div>
