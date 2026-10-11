@@ -263,7 +263,7 @@ function nightDepartments() {
         const absent = sum(x.values);
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>NS hiện có: ${x.total}</small></div>
-          <span class="badge ${absent ? 'has' : ''}">${absent ? absent + ' người' : 'Chưa có'}</span>
+          <span class="badge ${absent ? 'has' : ''}">${absent ? absent + ' người nghỉ' : 'Chưa có'}</span>
         </button>`;
       }).join('')}
     </div>`;
