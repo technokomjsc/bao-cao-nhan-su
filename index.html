@@ -239,7 +239,7 @@ function nightFactories() {
         const absent = sum(x.departments.map(d => sum(d.values)));
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>${x.departments.length} bộ phận</small></div>
-          <span class="badge ${absent ? 'has' : ''}">${absent} người</span>
+          <span class="badge ${absent ? 'has' : ''}">${absent} người nghỉ</span>
         </button>`;
       }).join('')}
     </div>`;
@@ -302,7 +302,7 @@ function nightForm() {
             <button type="button" data-i="${i}" data-d="1" aria-label="Tăng">+</button>
           </div>
         </div>`).join('')}
-      <div class="sum"><span>Tổng số người</span><span id="total">${sum(d.values)}</span></div>
+      <div class="sum"><span>Tổng số người nghỉ</span><span id="total">${sum(d.values)}</span></div>
     </div>`;
 
   $app.querySelectorAll('.stepper button').forEach(b => b.onclick = () => {
