@@ -103,6 +103,29 @@
   .done h2{margin:0 0 6px;font-size:20px}
   .done p{margin:0;color:var(--muted)}
   .hidden{display:none!important}
+
+  /* Chọn ngày */
+  .datebox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:16px}
+  .datebox label{display:block;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+  .datebox .row{display:flex;gap:8px;align-items:center}
+  .datebox input[type=date]{flex:1;height:48px;border:1px solid var(--line);border-radius:12px;padding:0 12px;
+        font-size:17px;font-weight:600;color:var(--text);background:#fff;font-family:inherit;min-width:0}
+  .datebox .btn-today{height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:#f8fafc;
+        color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .datebox .hint{font-size:13px;margin-top:8px;color:var(--muted)}
+  .datebox .hint.old{color:var(--warn);font-weight:600}
+  .crumb.old{background:#fde68a;color:#78350f;font-weight:700}
+  .msg.info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+
+  /* Bảng tổng hợp ca đêm (xem ngày cũ) */
+  table.st tr.row-click{cursor:pointer}
+  table.st tr.row-click:active td{background:#eef2ff}
+  table.st tr.row-click td:first-child::before{content:'▸ ';color:var(--muted)}
+  table.st tr.row-click.open td:first-child::before{content:'▾ '}
+  table.st tr.detail td{background:#f8fafc;padding:4px 10px 10px 22px;border-top:0}
+  table.st tr.detail .dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px}
+  table.st tr.detail .dl b{text-align:right}
+  table.st tr.grp.night td{color:var(--primary)}
 </style>
 </head>
 <body>
@@ -119,7 +142,7 @@
 
 <script>
 /* ====== CẤU HÌNH: dán URL Web App của Apps Script vào đây ====== */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby3NJFBmWjy5LRBMQKZ8rD1Px7hGysKdpWuSVgvpUxXywswlHXdzWHpdwUffxlH8cay/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/XXXXXXXXXXXX/exec';
 /* =============================================================== */
 
 const $app = document.getElementById('app');
@@ -136,9 +159,18 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = arr => arr.reduce((a, b) => a + (Number(b) || 0), 0);
 const $ = id => document.getElementById(id);
 
+/* ---------- Ngày ---------- */
+// ISO (yyyy-mm-dd, dùng cho ô lịch)  <->  dd-MM-yyyy (tên tab trong Google Sheet)
+const pad2 = n => String(n).padStart(2, '0');
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const isoToName = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+const SEL = { iso: todayISO() };                       // ngày đang chọn
+const selName = () => isoToName(SEL.iso);
+const isOldDay = () => SEL.iso !== todayISO();
+
 /* ---------- API ---------- */
 async function apiGet(type) {
-  const res = await fetch(SCRIPT_URL + '?type=' + type + '&t=' + Date.now());
+  const res = await fetch(SCRIPT_URL + '?type=' + type + '&date=' + selName() + '&t=' + Date.now());
   const json = await res.json();
   if (!json.ok) throw new Error(json.error);
   return json.data;
@@ -161,7 +193,19 @@ function setHeader(mode, crumbs) {
   $title.textContent = mode === 'night' ? 'BÁO CÁO NHÂN SỰ CA ĐÊM'
                     : mode === 'bread' ? 'BÁO CÁO SUẤT BÁNH MÌ SỮA'
                     : 'BÁO CÁO TECHNOKOM';
-  $crumbs.innerHTML = (crumbs || []).map(p => `<span class="crumb">${esc(p)}</span>`).join('');
+  let html = (crumbs || []).map(p => `<span class="crumb">${esc(p)}</span>`).join('');
+  if (mode) {
+    html = `<span class="crumb">Ngày ${esc(selName())}</span>` +
+           (isOldDay() ? `<span class="crumb old">Đang xem ngày cũ</span>` : '') + html;
+  }
+  $crumbs.innerHTML = html;
+}
+function showEmpty(mode) {
+  setHeader(mode, []);
+  $app.innerHTML = `<div class="msg info">Không có dữ liệu ngày <b>${esc(selName())}</b>.</div>`;
+  setBar(`<button class="btn ghost" style="flex:1" id="home">← Về trang đầu chọn ngày khác</button>`);
+  $('home').onclick = renderHome;
+  window.scrollTo(0, 0);
 }
 function setBar(html) {
   if (!html) { $bar.classList.add('hidden'); $barInner.innerHTML = ''; return; }
@@ -184,7 +228,17 @@ function showError(err, retry) {
  * ===================================================================== */
 function renderHome() {
   setHeader(null, []);
+  const max = todayISO();
+  if (SEL.iso > max) SEL.iso = max;
   $app.innerHTML = `
+    <div class="datebox">
+      <label for="dpick">Ngày báo cáo</label>
+      <div class="row">
+        <input type="date" id="dpick" value="${SEL.iso}" max="${max}">
+        <button class="btn-today" id="btnToday">Hôm nay</button>
+      </div>
+      <div class="hint" id="dhint"></div>
+    </div>
     <div class="step-title">Chọn loại báo cáo</div>
     <div class="menu">
       <button class="menu-btn night" id="goNight">
@@ -197,6 +251,22 @@ function renderHome() {
       </button>
     </div>`;
   setBar('');
+  const dp = $('dpick');
+  const hint = () => {
+    const old = isOldDay();
+    $('dhint').className = 'hint' + (old ? ' old' : '');
+    $('dhint').textContent = old
+      ? `Đang chọn ngày cũ ${selName()} — chỉ xem, không nhập được`
+      : `Hôm nay ${selName()} — nhập và gửi báo cáo`;
+    $('btnToday').classList.toggle('hidden', !old);
+  };
+  dp.addEventListener('change', () => {
+    let v = dp.value || todayISO();
+    if (v > todayISO()) v = todayISO();
+    SEL.iso = v; dp.value = v; hint();
+  });
+  $('btnToday').onclick = () => { SEL.iso = todayISO(); dp.value = SEL.iso; hint(); };
+  hint();
   $('goNight').onclick = () => { N.factory = null; N.dept = null; nightLoad(); };
   $('goBread').onclick = () => { B.factory = null; B.dept = null; breadLoad(); };
   window.scrollTo(0, 0);
@@ -219,6 +289,8 @@ async function nightLoad() {
   showLoading('Đang tải dữ liệu...');
   try {
     N.data = await apiGet('night');
+    if (N.data.empty) return showEmpty('night');
+    if (N.data.readonly) return nightOverview();
     if (N.factory) N.factory = N.data.factories.find(f => f.name === N.factory.name) || null;
     if (N.dept && N.factory) N.dept = N.factory.departments.find(d => d.name === N.dept.name) || null;
     if (N.dept) return nightForm();
@@ -227,6 +299,55 @@ async function nightLoad() {
   } catch (e) {
     showError(e, nightLoad);
   }
+}
+
+/* Xem ngày cũ: bảng tổng hợp, bấm 1 dòng để xem 5 lý do */
+function nightOverview() {
+  setHeader('night', []);
+  const f = N.data.factories;
+  const reasons = N.data.reasons;
+  const all = f.flatMap(x => x.departments);
+  const tot = list => ({ total: sum(list.map(d => d.total)), present: sum(list.map(d => d.present)), off: sum(list.map(d => sum(d.values))) });
+  const T = tot(all);
+  let k = 0;
+  $app.innerHTML = `
+    <div class="step-title">Tổng hợp nhân sự ca đêm</div>
+    <div class="card stats">
+      <div><b>${T.total}</b><span>NS hiện có</span></div>
+      <div><b>${T.present}</b><span>Đi làm</span></div>
+      <div><b>${T.off}</b><span>Tổng nghỉ</span></div>
+    </div>
+    <table class="st">
+      <thead><tr><th>Bộ phận</th><th class="num">NS có</th><th class="num">Đi làm</th><th class="num">Nghỉ</th></tr></thead>
+      <tbody>
+        ${f.map(x => {
+          const t = tot(x.departments);
+          return `
+          <tr class="grp night"><td>${esc(x.name)}</td><td class="num">${t.total}</td><td class="num">${t.present}</td><td class="num">${t.off}</td></tr>
+          ${x.departments.map(d => {
+            const id = k++;
+            return `
+            <tr class="row-click" data-k="${id}">
+              <td>${esc(d.name)}</td><td class="num">${d.total}</td><td class="num">${d.present}</td>
+              <td class="num">${sum(d.values) || '<span class="muted">0</span>'}</td>
+            </tr>
+            <tr class="detail hidden" id="dt${id}"><td colspan="4"><div class="dl">
+              ${reasons.map((r, i) => `<span>${esc(r)}</span><b>${d.values[i]}</b>`).join('')}
+            </div></td></tr>`;
+          }).join('')}`;
+        }).join('')}
+        <tr class="tot"><td>Tổng cộng</td><td class="num">${T.total}</td><td class="num">${T.present}</td><td class="num">${T.off}</td></tr>
+      </tbody>
+    </table>`;
+  $app.querySelectorAll('tr.row-click').forEach(tr => tr.onclick = () => {
+    tr.classList.toggle('open');
+    $('dt' + tr.dataset.k).classList.toggle('hidden');
+  });
+  setBar(`<button class="btn ghost" id="home">← Trang đầu</button>
+          <button class="btn ghost" style="flex:1" id="reload">↻ Tải lại</button>`);
+  $('home').onclick = renderHome;
+  $('reload').onclick = nightLoad;
+  window.scrollTo(0, 0);
 }
 
 function nightFactories() {
@@ -239,7 +360,7 @@ function nightFactories() {
         const absent = sum(x.departments.map(d => sum(d.values)));
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>${x.departments.length} bộ phận</small></div>
-          <span class="badge ${absent ? 'has' : ''}">${absent} người nghỉ</span>
+          <span class="badge ${absent ? 'has' : ''}">${absent} người</span>
         </button>`;
       }).join('')}
     </div>`;
@@ -263,7 +384,7 @@ function nightDepartments() {
         const absent = sum(x.values);
         return `<button class="item" data-i="${i}">
           <div>${esc(x.name)}<small>NS hiện có: ${x.total}</small></div>
-          <span class="badge ${absent ? 'has' : ''}">${absent ? absent + ' người nghỉ' : 'Chưa có'}</span>
+          <span class="badge ${absent ? 'has' : ''}">${absent ? absent + ' người' : 'Chưa có'}</span>
         </button>`;
       }).join('')}
     </div>`;
@@ -302,7 +423,7 @@ function nightForm() {
             <button type="button" data-i="${i}" data-d="1" aria-label="Tăng">+</button>
           </div>
         </div>`).join('')}
-      <div class="sum"><span>Tổng số người nghỉ</span><span id="total">${sum(d.values)}</span></div>
+      <div class="sum"><span>Tổng số người</span><span id="total">${sum(d.values)}</span></div>
     </div>`;
 
   $app.querySelectorAll('.stepper button').forEach(b => b.onclick = () => {
@@ -360,7 +481,7 @@ async function nightSubmit() {
   const btn = $('send');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
   try {
-    const updated = await apiPost({ type: 'night', factory: N.factory.name, department: d.name, values: N.inputs });
+    const updated = await apiPost({ type: 'night', date: selName(), factory: N.factory.name, department: d.name, values: N.inputs });
     const idx = N.factory.departments.findIndex(x => x.name === d.name);
     if (idx >= 0 && updated) N.factory.departments[idx] = updated;
     nightDone(updated || d);
@@ -404,7 +525,6 @@ const B = { data: null, factory: null, dept: null, input: null, saving: false };
 
 function breadCrumbs() {
   const p = [];
-  if (B.data) p.push('Ngày ' + B.data.date);
   if (B.factory) p.push(B.factory.name);
   if (B.dept) p.push(B.dept.name);
   setHeader('bread', p);
@@ -420,7 +540,10 @@ async function breadLoad() {
   setHeader('bread', []);
   showLoading('Đang tải dữ liệu...');
   try {
-    applyBreadData(await apiGet('bread'));
+    const data = await apiGet('bread');
+    if (data.empty) return showEmpty('bread');
+    applyBreadData(data);
+    if (data.readonly) return breadReadonly();
     if (B.dept) return breadForm();
     if (B.factory) return breadDepartments();
     breadFactories();
@@ -443,7 +566,8 @@ function breadFactories() {
       ${f.map((x, i) => {
         const done = declaredCount(x.departments), all = x.departments.length;
         return `<button class="item" data-i="${i}">
-          <div>${esc(x.name)}<small>Đã báo: ${done}/${all} bộ phận · ${qtySum(x.departments)} suất</small></div>
+          <div>${esc(x.name)}<small>Đã khai ${done}/${all} bộ phận · ${qtySum(x.departments)} suất</small></div>
+          <span class="badge ${done === all ? 'ok' : done ? 'has' : 'no'}">${done === all ? 'Đủ' : 'Thiếu ' + (all - done)}</span>
         </button>`;
       }).join('')}
     </div>
@@ -458,6 +582,24 @@ function breadFactories() {
   window.scrollTo(0, 0);
 }
 
+/* Xem ngày cũ: chỉ hiện bảng tình hình khai báo */
+function breadReadonly() {
+  B.factory = null; B.dept = null; breadCrumbs();
+  const all = B.data.factories.flatMap(deptsOf);
+  $app.innerHTML = `
+    <div class="card stats">
+      <div><b>${qtySum(all)}</b><span>Tổng suất</span></div>
+      <div><b>${declaredCount(all)}/${all.length}</b><span>Bộ phận đã khai</span></div>
+      <div><b>${all.length - declaredCount(all)}</b><span>Chưa khai</span></div>
+    </div>
+    ${breadStatusTable()}`;
+  setBar(`<button class="btn ghost" id="home">← Trang đầu</button>
+          <button class="btn ghost" style="flex:1" id="reload">↻ Tải lại</button>`);
+  $('home').onclick = renderHome;
+  $('reload').onclick = breadLoad;
+  window.scrollTo(0, 0);
+}
+
 function breadStatusTable() {
   const f = B.data.factories;
   const all = f.flatMap(deptsOf);
@@ -466,11 +608,11 @@ function breadStatusTable() {
   return `
     <div class="status-head">
       <div class="step-title">Tình hình khai báo</div>
-      <small>Đã báo: <b>${done}/${all.length}</b> bộ phận</small>
+      <small>Đã khai <b>${done}/${all.length}</b> bộ phận</small>
     </div>
     <div class="progress"><i style="width:${pct}%"></i></div>
     <table class="st">
-      <thead><tr><th>Bộ phận</th><th class="c">Trạng thái</th><th class="num">Số suất</th><th class="num">Giờ báo</th></tr></thead>
+      <thead><tr><th>Bộ phận</th><th class="c">Trạng thái</th><th class="num">Số suất</th><th class="num">Giờ khai</th></tr></thead>
       <tbody>
         ${f.map(x => `
           <tr class="grp"><td colspan="2">${esc(x.name)}</td>
@@ -479,7 +621,7 @@ function breadStatusTable() {
           ${x.departments.map(d => `
             <tr>
               <td>${esc(d.name)}</td>
-              <td class="c"><span class="pill ${d.declared ? 'ok' : 'no'}">${d.declared ? '✓ Đã báo' : '✗ Chưa báo'}</span></td>
+              <td class="c"><span class="pill ${d.declared ? 'ok' : 'no'}">${d.declared ? '✓ Đã khai' : '✗ Chưa khai'}</span></td>
               <td class="num ${d.declared ? '' : 'muted'}">${d.declared ? d.value : '—'}</td>
               <td class="num muted">${d.declared ? esc(d.time) : '—'}</td>
             </tr>`).join('')}
@@ -497,8 +639,8 @@ function breadDepartments() {
     <div class="step-title">Bước 2 · Chọn bộ phận</div>
     <div class="list">
       ${d.map((x, i) => `<button class="item" data-i="${i}">
-          <div>${esc(x.name)}<small>${x.declared ? 'Khai lúc ' + esc(x.time) : 'Chưa báo'}</small></div>
-          <span class="badge ${x.declared ? 'ok' : 'no'}">${x.declared ? x.value + ' suất' : 'Chưa báo'}</span>
+          <div>${esc(x.name)}<small>${x.declared ? 'Khai lúc ' + esc(x.time) : 'Chưa khai'}</small></div>
+          <span class="badge ${x.declared ? 'ok' : 'no'}">${x.declared ? x.value + ' suất' : 'Chưa khai'}</span>
         </button>`).join('')}
     </div>`;
   $app.querySelectorAll('.item').forEach(b => b.onclick = () => {
@@ -525,7 +667,7 @@ function breadForm() {
                  placeholder="0" value="${d.declared ? d.value : ''}">
           <button type="button" id="inc" aria-label="Tăng">+</button>
         </div>
-        <div class="cur">${d.declared ? `Đã báo: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa báo hôm nay'}</div>
+        <div class="cur">${d.declared ? `Đã khai: <b>${d.value}</b> suất lúc ${esc(d.time)} — gửi lại sẽ ghi đè` : 'Chưa khai hôm nay'}</div>
       </div>
     </div>`;
 
@@ -569,7 +711,7 @@ async function breadSubmit() {
   const btn = $('send');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
   try {
-    const data = await apiPost({ type: 'bread', factory: B.factory.name, department: d.name, value: B.input });
+    const data = await apiPost({ type: 'bread', date: selName(), factory: B.factory.name, department: d.name, value: B.input });
     applyBreadData(data);
     breadDone();
   } catch (e) {
@@ -590,8 +732,8 @@ function breadDone() {
       <p>${esc(B.factory.name)} · ${esc(d.name)} · ${esc(d.time)}</p>
     </div>
     <div class="card stats">
-      <div><b>${d.value}</b><span>Suất đã báo</span></div>
-      <div><b>${declaredCount(B.factory.departments)}/${B.factory.departments.length}</b><span>Bộ phận đã báo</span></div>
+      <div><b>${d.value}</b><span>Suất đã khai</span></div>
+      <div><b>${declaredCount(B.factory.departments)}/${B.factory.departments.length}</b><span>Bộ phận đã khai</span></div>
       <div><b>${qtySum(B.factory.departments)}</b><span>Tổng suất ${esc(B.factory.name)}</span></div>
     </div>
     ${breadStatusTable()}`;
