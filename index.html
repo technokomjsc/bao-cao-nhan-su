@@ -256,7 +256,7 @@ function renderHome() {
     const old = isOldDay();
     $('dhint').className = 'hint' + (old ? ' old' : '');
     $('dhint').textContent = old
-      ? `Đang chọn ngày cũ ${selName()} — chỉ xem, không nhập được`
+      ? `Đang chọn ngày cũ ${selName()} — Chỉ xem`
       : `Hôm nay ${selName()} — nhập và gửi báo cáo`;
     $('btnToday').classList.toggle('hidden', !old);
   };
