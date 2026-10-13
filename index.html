@@ -126,6 +126,27 @@
   table.st tr.detail .dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px}
   table.st tr.detail .dl b{text-align:right}
   table.st tr.grp.night td{color:var(--primary)}
+
+  /* Chi tiết theo chức vụ (ca đêm) */
+  .rblock{border-top:1px solid var(--line)}
+  .rblock:first-child{border-top:0}
+  .rblock .reason{border-top:0}
+  .dpanel{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:6px 10px 10px;margin:0 0 12px}
+  .drow{padding:8px 0;border-top:1px dashed var(--line)}
+  .drow:first-child{border-top:0}
+  .dtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dtype{font-weight:600;font-size:14px}
+  .stepper.sm button{width:38px;height:38px;font-size:20px}
+  .stepper.sm input{width:46px;height:38px;font-size:17px}
+  .dnote{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .dnote select,.dnote input{width:100%;height:42px;border:1px solid var(--line);border-radius:10px;padding:0 10px;
+        font-size:15px;background:#fff;color:var(--text);font-family:inherit}
+  .dnote select:focus,.dnote input:focus{outline:2px solid #bfdbfe;border-color:var(--primary-2)}
+  .dstatus{font-size:13px;font-weight:600;margin-top:6px;padding:6px 10px;border-radius:8px}
+  .dstatus.bad{background:var(--err-bg);color:var(--err)}
+  .dstatus.good{background:var(--ok-bg);color:var(--ok)}
+  .notebox{white-space:pre-line;font-size:14px;line-height:1.5}
+  .notebox.sm{font-size:13px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);color:var(--text)}
 </style>
 </head>
 <body>
@@ -256,7 +277,7 @@ function renderHome() {
     const old = isOldDay();
     $('dhint').className = 'hint' + (old ? ' old' : '');
     $('dhint').textContent = old
-      ? `Đang chọn ngày cũ ${selName()} — Chỉ xem`
+      ? `Đang chọn ngày cũ ${selName()} — chỉ xem, không nhập được`
       : `Hôm nay ${selName()} — nhập và gửi báo cáo`;
     $('btnToday').classList.toggle('hidden', !old);
   };
@@ -333,7 +354,7 @@ function nightOverview() {
             </tr>
             <tr class="detail hidden" id="dt${id}"><td colspan="4"><div class="dl">
               ${reasons.map((r, i) => `<span>${esc(r)}</span><b>${d.values[i]}</b>`).join('')}
-            </div></td></tr>`;
+            </div>${d.note ? `<div class="notebox sm">${esc(d.note)}</div>` : ''}</td></tr>`;
           }).join('')}`;
         }).join('')}
         <tr class="tot"><td>Tổng cộng</td><td class="num">${T.total}</td><td class="num">${T.present}</td><td class="num">${T.off}</td></tr>
@@ -396,11 +417,63 @@ function nightDepartments() {
   window.scrollTo(0, 0);
 }
 
+/* ---------- Chi tiết theo chức vụ ---------- */
+const TYPES = ['Thời vụ', 'Công nhân', 'Sinh viên'];
+const NOTE_OPTS = ['Ốm', 'Không liên lạc được', 'Bỏ việc', 'Khác'];
+
+// Chuyển chi tiết đã lưu (cột U) -> trạng thái form
+function detailFromSaved(saved, values) {
+  return values.map((v, i) => TYPES.map((_, t) => {
+    const e = saved && saved[i] && saved[i][t];
+    const qty = e ? (e[0] | 0) : 0;
+    const note = e ? String(e[1] || '') : '';
+    if (!note) return { qty, sel: '', other: '' };
+    const preset = NOTE_OPTS.slice(0, -1).includes(note);
+    return { qty, sel: preset ? note : 'Khác', other: preset ? '' : note };
+  }));
+}
+const noteOf = r => r.sel === 'Khác' ? r.other.trim() : r.sel;
+
+// Tạo nội dung Ghi chú giống script (để xem trước khi gửi)
+function buildNote(det, values) {
+  return TYPES.map((type, t) => {
+    const groups = [];
+    values.forEach((v, i) => {
+      if (!v) return;
+      const r = det[i][t];
+      if (!r.qty) return;
+      const note = noteOf(r);
+      const g = groups.find(x => x.key === note.toLowerCase());
+      if (g) g.n += r.qty; else groups.push({ key: note.toLowerCase(), note, n: r.qty });
+    });
+    if (!groups.length) return '';
+    const total = sum(groups.map(g => g.n));
+    const inner = groups.length === 1 ? groups[0].note : groups.map(g => g.n + ' ' + g.note).join(', ');
+    return `+ ${total} ${type} (${inner})`;
+  }).filter(Boolean).join('\n');
+}
+
+// Lỗi của 1 lý do (null = hợp lệ)
+function detailError(i) {
+  const v = N.inputs[i];
+  if (!v) return null;
+  const rows = N.details[i];
+  const s = sum(rows.map(r => r.qty));
+  if (s !== v) return `Đã chia ${s}/${v} người — tổng 3 dòng phải bằng ${v}`;
+  for (let t = 0; t < TYPES.length; t++) {
+    const r = rows[t];
+    if (r.qty > 0 && !r.sel) return `Chưa chọn ghi chú cho ${TYPES[t]}`;
+    if (r.qty > 0 && r.sel === 'Khác' && !r.other.trim()) return `Chưa gõ ghi chú "Khác" cho ${TYPES[t]}`;
+  }
+  return null;
+}
+
 function nightForm() {
   nightCrumbs();
   const d = N.dept;
   const reasons = N.data.reasons;
   N.inputs = d.values.slice();
+  N.details = detailFromSaved(d.detail, d.values);
 
   $app.innerHTML = `
     <div class="step-title">Bước 3 · Nhập số người nghỉ theo lý do</div>
@@ -412,35 +485,38 @@ function nightForm() {
     <div id="warn"></div>
     <div class="card">
       ${reasons.map((r, i) => `
-        <div class="reason">
-          <label for="in${i}">${esc(r)}
-            <span class="cur" id="cur${i}">Hiện tại: ${d.values[i]}</span>
-          </label>
-          <div class="stepper">
-            <button type="button" data-i="${i}" data-d="-1" aria-label="Giảm">−</button>
-            <input id="in${i}" data-i="${i}" type="text" inputmode="numeric" pattern="[0-9]*"
-                   autocomplete="off" value="${d.values[i]}">
-            <button type="button" data-i="${i}" data-d="1" aria-label="Tăng">+</button>
+        <div class="rblock">
+          <div class="reason">
+            <label for="in${i}">${esc(r)}
+              <span class="cur" id="cur${i}">Hiện tại: ${d.values[i]}</span>
+            </label>
+            <div class="stepper">
+              <button type="button" class="rstep" data-i="${i}" data-d="-1" aria-label="Giảm">−</button>
+              <input id="in${i}" class="rin" data-i="${i}" type="text" inputmode="numeric" pattern="[0-9]*"
+                     autocomplete="off" value="${d.values[i]}">
+              <button type="button" class="rstep" data-i="${i}" data-d="1" aria-label="Tăng">+</button>
+            </div>
           </div>
+          <div class="dpanel hidden" id="dp${i}"></div>
         </div>`).join('')}
       <div class="sum"><span>Tổng số người</span><span id="total">${sum(d.values)}</span></div>
     </div>`;
 
-  $app.querySelectorAll('.stepper button').forEach(b => b.onclick = () => {
+  $app.querySelectorAll('.rstep').forEach(b => b.onclick = () => {
     const i = +b.dataset.i;
     nightSet(i, (N.inputs[i] || 0) + (+b.dataset.d));
   });
-  $app.querySelectorAll('.stepper input').forEach(inp => {
+  $app.querySelectorAll('.rin').forEach(inp => {
     inp.addEventListener('focus', () => inp.select());
     inp.addEventListener('input', () => {
       const digits = inp.value.replace(/\D/g, '').slice(0, 3);
       inp.value = digits;
-      N.inputs[+inp.dataset.i] = digits === '' ? 0 : parseInt(digits, 10);
-      nightRefresh();
+      onReasonChange(+inp.dataset.i, digits === '' ? 0 : parseInt(digits, 10));
     });
     inp.addEventListener('blur', () => { inp.value = N.inputs[+inp.dataset.i]; });
   });
 
+  reasons.forEach((_, i) => renderPanel(i));
   setBar(`<button class="btn ghost" id="back">←</button>
           <button class="btn primary" id="send">Gửi báo cáo</button>`);
   $('back').onclick = nightDepartments;
@@ -451,9 +527,91 @@ function nightForm() {
 
 function nightSet(i, v) {
   v = Math.max(0, Math.min(999, v | 0));
-  N.inputs[i] = v;
   $('in' + i).value = v;
+  onReasonChange(i, v);
+}
+
+function onReasonChange(i, v) {
+  const was = N.inputs[i];
+  N.inputs[i] = v;
+  if (!v) N.details[i] = TYPES.map(() => ({ qty: 0, sel: '', other: '' }));
+  // Chỉ có 1 dòng đang dùng -> tự cập nhật theo số mới cho nhanh
+  const used = N.details[i].filter(r => r.qty > 0);
+  if (v && used.length === 1 && used[0].qty === was) used[0].qty = v;
+  renderPanel(i);
   nightRefresh();
+}
+
+// Vẽ 3 dòng chi tiết của lý do i
+function renderPanel(i) {
+  const p = $('dp' + i);
+  const v = N.inputs[i];
+  if (!v) { p.classList.add('hidden'); p.innerHTML = ''; return; }
+  p.classList.remove('hidden');
+  p.innerHTML = `
+    ${TYPES.map((type, t) => {
+      const r = N.details[i][t];
+      return `
+      <div class="drow" data-i="${i}" data-t="${t}">
+        <div class="dtop">
+          <span class="dtype">${esc(type)}</span>
+          <div class="stepper sm">
+            <button type="button" class="dstep" data-d="-1" aria-label="Giảm">−</button>
+            <input class="dqty" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${r.qty}">
+            <button type="button" class="dstep" data-d="1" aria-label="Tăng">+</button>
+          </div>
+        </div>
+        <div class="dnote ${r.qty ? '' : 'hidden'}">
+          <select class="dsel">
+            <option value="">— Chọn ghi chú —</option>
+            ${NOTE_OPTS.map(o => `<option ${r.sel === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+          </select>
+          <input class="dother ${r.sel === 'Khác' ? '' : 'hidden'}" type="text" maxlength="100"
+                 placeholder="Gõ ghi chú..." value="${esc(r.other)}">
+        </div>
+      </div>`;
+    }).join('')}
+    <div class="dstatus" id="ds${i}"></div>`;
+
+  p.querySelectorAll('.drow').forEach(row => {
+    const t = +row.dataset.t;
+    const r = N.details[i][t];
+    const q = row.querySelector('.dqty');
+    const setQ = n => {
+      n = Math.max(0, Math.min(v, n | 0));
+      r.qty = n; q.value = n;
+      row.querySelector('.dnote').classList.toggle('hidden', !n);
+      panelStatus(i);
+    };
+    row.querySelectorAll('.dstep').forEach(b => b.onclick = () => setQ(r.qty + (+b.dataset.d)));
+    q.addEventListener('focus', () => q.select());
+    q.addEventListener('input', () => {
+      const digits = q.value.replace(/\D/g, '').slice(0, 3);
+      const n = digits === '' ? 0 : parseInt(digits, 10);
+      r.qty = Math.min(n, v);
+      q.value = digits === '' ? '' : r.qty;
+      row.querySelector('.dnote').classList.toggle('hidden', !r.qty);
+      panelStatus(i);
+    });
+    q.addEventListener('blur', () => { q.value = r.qty; });
+    const sel = row.querySelector('.dsel'), oth = row.querySelector('.dother');
+    sel.onchange = () => {
+      r.sel = sel.value;
+      oth.classList.toggle('hidden', r.sel !== 'Khác');
+      if (r.sel === 'Khác') oth.focus();
+      panelStatus(i);
+    };
+    oth.addEventListener('input', () => { r.other = oth.value; panelStatus(i); });
+  });
+  panelStatus(i);
+}
+
+function panelStatus(i) {
+  const el = $('ds' + i);
+  if (!el) return;
+  const err = detailError(i);
+  el.className = 'dstatus ' + (err ? 'bad' : 'good');
+  el.textContent = err || `✓ Đã chia đủ ${N.inputs[i]} người`;
 }
 
 function nightRefresh() {
@@ -470,18 +628,33 @@ async function nightSubmit() {
   if (N.saving) return;
   const d = N.dept;
   const reasons = N.data.reasons;
+
+  // Kiểm tra chi tiết
+  for (let i = 0; i < reasons.length; i++) {
+    const err = detailError(i);
+    if (err) {
+      alert(`${reasons[i]}: ${err}`);
+      $('dp' + i).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+  }
+
   const total = sum(N.inputs);
+  const note = buildNote(N.details, N.inputs);
   const lines = reasons.map((r, i) => `• ${r}: ${N.inputs[i]}`).join('\n');
   let msg = `Gửi báo cáo cho ${N.factory.name} - ${d.name}?\n\n${lines}\n\nTổng: ${total} người`;
+  if (note) msg += `\n\nGhi chú:\n${note}`;
   if (sum(d.values) > 0) msg += `\n\n(Số liệu cũ sẽ bị ghi đè)`;
   if (total > d.total) msg += `\n\n⚠ Tổng lớn hơn NS hiện có (${d.total})`;
   if (!confirm(msg)) return;
+
+  const details = N.inputs.map((v, i) => N.details[i].map(r => ({ qty: v ? r.qty : 0, note: v && r.qty ? noteOf(r) : '' })));
 
   N.saving = true;
   const btn = $('send');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
   try {
-    const updated = await apiPost({ type: 'night', date: selName(), factory: N.factory.name, department: d.name, values: N.inputs });
+    const updated = await apiPost({ type: 'night', date: selName(), factory: N.factory.name, department: d.name, values: N.inputs, details });
     const idx = N.factory.departments.findIndex(x => x.name === d.name);
     if (idx >= 0 && updated) N.factory.departments[idx] = updated;
     nightDone(updated || d);
@@ -506,6 +679,7 @@ function nightDone(d) {
       ${reasons.map((r, i) => `<div class="reason"><span>${esc(r)}</span><b>${d.values[i]}</b></div>`).join('')}
       <div class="sum"><span>Tổng số người</span><span>${sum(d.values)}</span></div>
     </div>
+    ${d.note ? `<div class="card"><div class="step-title" style="margin:0 0 6px">Ghi chú</div><div class="notebox">${esc(d.note)}</div></div>` : ''}
     <div class="card stats">
       <div><b>${d.total}</b><span>NS hiện có</span></div>
       <div><b>${d.present}</b><span>Đi làm</span></div>
