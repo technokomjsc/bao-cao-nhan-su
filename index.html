@@ -432,7 +432,9 @@ function detailFromSaved(saved, values) {
     return { qty, sel: preset ? note : 'Khác', other: preset ? '' : note };
   }));
 }
-const noteOf = r => r.sel === 'Khác' ? r.other.trim() : r.sel;
+// Lý do không cần chọn ghi chú (Nghỉ phép): ghi chú tự điền là tên lý do
+const NO_NOTE = { 0: 'Nghỉ phép' };
+const noteOf = (r, i) => NO_NOTE[i] || (r.sel === 'Khác' ? r.other.trim() : r.sel);
 
 // Tạo nội dung Ghi chú giống script (để xem trước khi gửi)
 function buildNote(det, values) {
@@ -442,7 +444,7 @@ function buildNote(det, values) {
       if (!v) return;
       const r = det[i][t];
       if (!r.qty) return;
-      const note = noteOf(r);
+      const note = noteOf(r, i);
       const g = groups.find(x => x.key === note.toLowerCase());
       if (g) g.n += r.qty; else groups.push({ key: note.toLowerCase(), note, n: r.qty });
     });
@@ -462,6 +464,7 @@ function detailError(i) {
   if (s !== v) return `Đã chia ${s}/${v} người — tổng 3 dòng phải bằng ${v}`;
   for (let t = 0; t < TYPES.length; t++) {
     const r = rows[t];
+    if (NO_NOTE[i]) continue;
     if (r.qty > 0 && !r.sel) return `Chưa chọn ghi chú cho ${TYPES[t]}`;
     if (r.qty > 0 && r.sel === 'Khác' && !r.other.trim()) return `Chưa gõ ghi chú "Khác" cho ${TYPES[t]}`;
   }
@@ -561,7 +564,7 @@ function renderPanel(i) {
             <button type="button" class="dstep" data-d="1" aria-label="Tăng">+</button>
           </div>
         </div>
-        <div class="dnote ${r.qty ? '' : 'hidden'}">
+        <div class="dnote ${r.qty && !NO_NOTE[i] ? '' : 'hidden'}">
           <select class="dsel">
             <option value="">— Chọn ghi chú —</option>
             ${NOTE_OPTS.map(o => `<option ${r.sel === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
@@ -580,7 +583,7 @@ function renderPanel(i) {
     const setQ = n => {
       n = Math.max(0, Math.min(v, n | 0));
       r.qty = n; q.value = n;
-      row.querySelector('.dnote').classList.toggle('hidden', !n);
+      row.querySelector('.dnote').classList.toggle('hidden', !n || !!NO_NOTE[i]);
       panelStatus(i);
     };
     row.querySelectorAll('.dstep').forEach(b => b.onclick = () => setQ(r.qty + (+b.dataset.d)));
@@ -590,7 +593,7 @@ function renderPanel(i) {
       const n = digits === '' ? 0 : parseInt(digits, 10);
       r.qty = Math.min(n, v);
       q.value = digits === '' ? '' : r.qty;
-      row.querySelector('.dnote').classList.toggle('hidden', !r.qty);
+      row.querySelector('.dnote').classList.toggle('hidden', !r.qty || !!NO_NOTE[i]);
       panelStatus(i);
     });
     q.addEventListener('blur', () => { q.value = r.qty; });
@@ -648,7 +651,7 @@ async function nightSubmit() {
   if (total > d.total) msg += `\n\n⚠ Tổng lớn hơn NS hiện có (${d.total})`;
   if (!confirm(msg)) return;
 
-  const details = N.inputs.map((v, i) => N.details[i].map(r => ({ qty: v ? r.qty : 0, note: v && r.qty ? noteOf(r) : '' })));
+  const details = N.inputs.map((v, i) => N.details[i].map(r => ({ qty: v ? r.qty : 0, note: v && r.qty ? noteOf(r, i) : '' })));
 
   N.saving = true;
   const btn = $('send');
