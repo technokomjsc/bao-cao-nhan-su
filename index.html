@@ -178,6 +178,8 @@ document.getElementById('today').textContent =
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sum = arr => arr.reduce((a, b) => a + (Number(b) || 0), 0);
+// Hiển thị số gọn: tối đa 1 chữ số thập phân, dấu phẩy kiểu VN (vd 4,5)
+const fmt = n => (Math.round((Number(n) || 0) * 10) / 10).toLocaleString('vi-VN');
 const $ = id => document.getElementById(id);
 
 /* ---------- Ngày ---------- */
@@ -334,9 +336,9 @@ function nightOverview() {
   $app.innerHTML = `
     <div class="step-title">Tổng hợp nhân sự ca đêm</div>
     <div class="card stats">
-      <div><b>${T.total}</b><span>NS hiện có</span></div>
-      <div><b>${T.present}</b><span>Đi làm</span></div>
-      <div><b>${T.off}</b><span>Tổng nghỉ</span></div>
+      <div><b>${fmt(T.total)}</b><span>NS hiện có</span></div>
+      <div><b>${fmt(T.present)}</b><span>Đi làm</span></div>
+      <div><b>${fmt(T.off)}</b><span>Tổng nghỉ</span></div>
     </div>
     <table class="st">
       <thead><tr><th>Bộ phận</th><th class="num">NS có</th><th class="num">Đi làm</th><th class="num">Nghỉ</th></tr></thead>
@@ -344,12 +346,12 @@ function nightOverview() {
         ${f.map(x => {
           const t = tot(x.departments);
           return `
-          <tr class="grp night"><td>${esc(x.name)}</td><td class="num">${t.total}</td><td class="num">${t.present}</td><td class="num">${t.off}</td></tr>
+          <tr class="grp night"><td>${esc(x.name)}</td><td class="num">${fmt(t.total)}</td><td class="num">${fmt(t.present)}</td><td class="num">${fmt(t.off)}</td></tr>
           ${x.departments.map(d => {
             const id = k++;
             return `
             <tr class="row-click" data-k="${id}">
-              <td>${esc(d.name)}</td><td class="num">${d.total}</td><td class="num">${d.present}</td>
+              <td>${esc(d.name)}</td><td class="num">${fmt(d.total)}</td><td class="num">${fmt(d.present)}</td>
               <td class="num">${sum(d.values) || '<span class="muted">0</span>'}</td>
             </tr>
             <tr class="detail hidden" id="dt${id}"><td colspan="4"><div class="dl">
@@ -357,7 +359,7 @@ function nightOverview() {
             </div>${d.note ? `<div class="notebox sm">${esc(d.note)}</div>` : ''}</td></tr>`;
           }).join('')}`;
         }).join('')}
-        <tr class="tot"><td>Tổng cộng</td><td class="num">${T.total}</td><td class="num">${T.present}</td><td class="num">${T.off}</td></tr>
+        <tr class="tot"><td>Tổng cộng</td><td class="num">${fmt(T.total)}</td><td class="num">${fmt(T.present)}</td><td class="num">${fmt(T.off)}</td></tr>
       </tbody>
     </table>`;
   $app.querySelectorAll('tr.row-click').forEach(tr => tr.onclick = () => {
@@ -404,7 +406,7 @@ function nightDepartments() {
       ${d.map((x, i) => {
         const absent = sum(x.values);
         return `<button class="item" data-i="${i}">
-          <div>${esc(x.name)}<small>NS hiện có: ${x.total}</small></div>
+          <div>${esc(x.name)}<small>NS hiện có: ${fmt(x.total)}</small></div>
           <span class="badge ${absent ? 'has' : ''}">${absent ? absent + ' người' : 'Chưa có'}</span>
         </button>`;
       }).join('')}
@@ -481,8 +483,8 @@ function nightForm() {
   $app.innerHTML = `
     <div class="step-title">Bước 3 · Nhập số người nghỉ theo lý do</div>
     <div class="card stats">
-      <div><b>${d.total}</b><span>NS hiện có</span></div>
-      <div><b>${d.present}</b><span>Đi làm</span></div>
+      <div><b>${fmt(d.total)}</b><span>NS hiện có</span></div>
+      <div><b>${fmt(d.present)}</b><span>Đi làm</span></div>
       <div><b>${sum(d.values)}</b><span>Đã báo nghỉ</span></div>
     </div>
     <div id="warn"></div>
@@ -623,7 +625,7 @@ function nightRefresh() {
   $('total').textContent = total;
   N.inputs.forEach((v, i) => $('cur' + i).classList.toggle('changed', v !== d.values[i]));
   $('warn').innerHTML = total > d.total
-    ? `<div class="msg warn">Tổng số người (${total}) lớn hơn nhân sự hiện có (${d.total}). Vui lòng kiểm tra lại.</div>`
+    ? `<div class="msg warn">Tổng số người (${total}) lớn hơn nhân sự hiện có (${fmt(d.total)}). Vui lòng kiểm tra lại.</div>`
     : '';
 }
 
@@ -648,7 +650,7 @@ async function nightSubmit() {
   let msg = `Gửi báo cáo cho ${N.factory.name} - ${d.name}?\n\n${lines}\n\nTổng: ${total} người`;
   if (note) msg += `\n\nGhi chú:\n${note}`;
   if (sum(d.values) > 0) msg += `\n\n(Số liệu cũ sẽ bị ghi đè)`;
-  if (total > d.total) msg += `\n\n⚠ Tổng lớn hơn NS hiện có (${d.total})`;
+  if (total > d.total) msg += `\n\n⚠ Tổng lớn hơn NS hiện có (${fmt(d.total)})`;
   if (!confirm(msg)) return;
 
   const details = N.inputs.map((v, i) => N.details[i].map(r => ({ qty: v ? r.qty : 0, note: v && r.qty ? noteOf(r, i) : '' })));
@@ -684,9 +686,9 @@ function nightDone(d) {
     </div>
     ${d.note ? `<div class="card"><div class="step-title" style="margin:0 0 6px">Ghi chú</div><div class="notebox">${esc(d.note)}</div></div>` : ''}
     <div class="card stats">
-      <div><b>${d.total}</b><span>NS hiện có</span></div>
-      <div><b>${d.present}</b><span>Đi làm</span></div>
-      <div><b>${d.absent}</b><span>Nghỉ trong ngày</span></div>
+      <div><b>${fmt(d.total)}</b><span>NS hiện có</span></div>
+      <div><b>${fmt(d.present)}</b><span>Đi làm</span></div>
+      <div><b>${fmt(d.absent)}</b><span>Nghỉ trong ngày</span></div>
     </div>`;
   setBar(`<button class="btn ghost" id="home">Về đầu</button>
           <button class="btn primary" id="other">Bộ phận khác</button>`);
